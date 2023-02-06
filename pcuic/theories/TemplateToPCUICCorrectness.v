@@ -114,37 +114,188 @@ Proof.
   reflexivity.
 Qed.
 
-(* Lemma lookup_env_trans_global_decl_app : forall univs decls retro kn d,
+Lemma lookup_env_trans_global_decl_app : forall univs decls retro kn d cst,
 let Σmap := (build_global_env_map {| universes := univs; declarations := decls; retroknowledge := retro |}) in
-trans_global_decls Σmap [(kn,d)] =
-(build_global_env_map {|
+lookup_env (trans_global_decls Σmap [(kn,d)]) cst =
+lookup_env (build_global_env_map {|
   universes := univs;
   declarations := (trans_global_decl Σmap (kn, d)) ++ decls;
-  retroknowledge := retro |}).
+  retroknowledge := retro |}) cst.
 Proof.
-  intros univs decls retro kn d Σmap.
+  intros univs decls retro kn d cst Σmap.
   destruct d; cbn; auto.
-  - unfold add_global_decl; cbn.
-    unfold build_global_env_map; cbn.
-    unfold PCUICEnvironment.add_global_decl; cbn.
-    unfold PCUICProgram.build_global_env_map_obligation_1; cbn.
-    unfold TemplateToPCUIC.add_global_decl_obligation_1. *)
+  induction (trans_module_decl Σmap kn m) as [|[kn' d'] tl].
+  - cbn; auto.
+  - cbn. destruct eq_kername eqn: E.
+    apply eqb_eq in E; subst; auto.
+    exact IHtl.
+Qed.
+
+Lemma lookup_env_trans_global_decl_app_explicit :
+forall univs decls retro kn d cst,
+let Σ := trans_global_env {| S.Env.universes := univs; S.Env.declarations := decls; S.Env.retroknowledge := retro |} in
+lookup_env (fold_right add_global_decl Σ (trans_global_decl Σ (kn, d))) cst =
+lookup_env ({|
+  universes := Σ.(universes);
+  declarations := (trans_global_decl Σ (kn, d)) ++ Σ.(declarations);
+  retroknowledge := Σ.(retroknowledge) |}) cst.
+Proof.
+  intros univs decls retro kn d cst Σmap.
+  destruct d; cbn -[fold_right]; auto.
+  induction (trans_module_decl Σmap kn m) as [|[kn' d'] tl].
+  - cbn; auto.
+  - cbn. destruct eq_kername eqn: E.
+    apply eqb_eq in E; subst; auto.
+    exact IHtl.
+Qed.
+
+Lemma lookup_empty_trans_env_global_decl_app_explicit :
+forall univs decls retro kn d cst,
+let Σ := trans_global_decls (empty_trans_env univs retro) decls in
+lookup_env (fold_right add_global_decl Σ (trans_global_decl Σ (kn, d))) cst =
+lookup_env ({|
+  universes := Σ.(universes);
+  declarations := (trans_global_decl Σ (kn, d)) ++ Σ.(declarations);
+  retroknowledge := Σ.(retroknowledge) |}) cst.
+Proof.
+  intros univs decls retro kn d cst Σ.
+  destruct d; cbn -[fold_right]; auto.
+  induction (trans_module_decl Σ kn m) as [|[kn' d'] tl].
+  - cbn; auto.
+  - cbn. destruct eq_kername eqn: E.
+    apply eqb_eq in E; subst; auto.
+    exact IHtl.
+Qed.
+
+Lemma lookup_app_none : forall decls1 decls2 cst,
+lookup_global (decls1 ++ decls2) cst = None <->
+(lookup_global decls1 cst = None /\ lookup_global decls2 cst = None).
+Proof.
+  induction decls1 as [|[kn d] tl IHtl]; cbn.
+  - split.
+    intros H. split; auto.
+    now intros [H1 H2].
+  - split.
+    -- destruct eq_kername eqn: E.
+      discriminate.
+      apply IHtl.
+    -- destruct eq_kername eqn: E.
+      apply eqb_eq in E; subst.
+      intros [contra _]. inversion contra.
+      apply IHtl.
+Qed.
+
+Lemma all_kn_neq__kn_not_in : forall kn (decls: list (kername × global_decl)),
+(~ In kn (map fst decls)) <-> (Forall (fun '(kn', _) => kn <> kn') decls).
+Proof.
+  induction decls.
+  - cbn. split.
+    -- intros _. auto.
+    -- auto.
+  - cbn. split.
+    -- intros H.
+      apply Forall_forall; cbn; auto.
+      intros [kn' d'] [].
+      --- subst a; now cbn in *.
+      --- intros contra; subst kn'.
+        destruct H. right.
+        apply in_split in H0 as [l1 [l2 H0]].
+        rewrite H0. rewrite map_app.
+        rewrite in_app_iff; right.
+        cbn. now left.
+    -- rewrite Forall_forall.
+      intros Hin [contra | contra].
+      --- destruct a as [kn' g]; subst kn.
+        specialize (Hin (kn', g)); cbn in Hin.
+        apply Hin; auto.
+      --- apply in_map_iff in contra as [[kn' d] [H1 H2]].
+        cbn in *; subst.
+        assert (a = (kn, d) \/ In (kn, d) decls) by now right.
+        now apply Hin in H.
+Qed.
 
 
-Lemma trans_lookup_module {cf} {Σ : Ast.Env.global_env} cst m :
+Lemma trans_lookup_module {cf} {Σ : Ast.Env.global_env} cst m {wfΣ : Typing.wf Σ}:
   Ast.Env.lookup_env Σ cst = Some (Ast.Env.ModuleDecl m) ->
   lookup_env (trans_global_env Σ) cst = None.
 Proof.
   destruct Σ as [univs decls retro].
   intros H.
   cbn -[fold_right].
+  (* generalize dependent univs.
+  revert retro cst m. *)
   induction decls as [|[kn g] tl IHtl]; cbn -[fold_right]; auto.
   cbn in H.
-  (** immediately to inductive case: a::Σ *)
+  (** immediately to inductive case: (kn, g)::Σ *)
   destruct eq_kername eqn: E.
-  - apply eqb_eq in E. subst kn.
+  - (* cst = kn *)
+    apply eqb_eq in E. subst kn.
     unfold trans_global_env in *; simpl in *.
-    (* remember (fun (decl : kername × Ast.Env.global_decl) (Σ' : global_env_map) => fold_right add_global_decl Σ' (trans_global_decl Σ' decl)) as f. *)
+    destruct g; cbn; auto; try discriminate.
+    inversion H; subst.
+    pose proof (lookup_empty_trans_env_global_decl_app_explicit univs tl retro cst (Ast.Env.ModuleDecl m) cst).
+    cbn in H0. rewrite H0. clear H0.
+    cbn. apply lookup_app_none; split.
+    -- (* lookup m in (trans m) = None. *)
+      apply lookup_global_None.
+      apply all_kn_neq__kn_not_in.
+      now apply translated_module_decl_all_kn_neq.
+    -- (* lookup m in (trans tl) = None.*)
+      destruct wfΣ as [onu ond]. depelim ond.
+      destruct o. apply ST.fresh_global_iff_lookup_global_None in kn_fresh.
+      clear -kn_fresh.
+      clear IHtl.
+      (* generalize dependent cst. *)
+      (* by freshness: cst is not in tl. WTS cst is not in (trans tl).
+      We do an induction on tl. *)
+      revert kn_fresh.
+      induction tl as [|htl ttl IHttl]; cbn -[fold_right] in *; auto.
+      (* tl = [] is trivial. Now IH says " if cst ∉ ttl, then cst ∉ (trans ttl)".
+        suppose tl = htl::ttl. *)
+      destruct eq_kername eqn: E => //.
+      intros kn_fresh. simpl.
+      pose proof (lookup_empty_trans_env_global_decl_app_explicit univs ttl retro).
+      unfold lookup_env in H0. destruct htl as [kn d].
+      rewrite H0; clear H0. apply lookup_app_none; split.
+      (* "if cst ∉ ttl, WTS cst ∉ (trans ttl) which is IH, and cst ∉ (trans kn d)." *)
+      simpl in E.
+      induction d; cbn. all: try rewrite E; auto.
+      (* if htl is const, mind, modtype, freshness is violated. left with mod and ttl. *)
+      (* suppose htl := (kn, m), then translated names (kn.a, ...) all extend kn.
+        if (kn.a) = cst, it means cst extends kn. can this happen?
+
+        meaning
+
+        Module kn. defn a. end kn.
+
+        Module cst. ... End cst.
+
+        Case 1: cst is a "base" module.
+        Then cst = (MPfile dp, id).
+        kn must be "base", so also (MPfile dp, id'). freshness gives id != id'.
+        kn.sth cannot extend cst because they differ by id/id'.
+
+        Case 2: cst is a nested module.
+        Then cst = (MPdot mp parent, id).
+        kn must be base, (MPfile dp, id').
+        kn.sth = (MPdot (MPfile dp) id', sth) = cst = (MPdot mp parent, id)
+          => mp = (MPfile dp), parent = id, sth = id =>
+
+        *)
+
+    --
+
+
+    shelve.
+    apply IHtl.
+
+    (* unfold empty_trans_env. *)
+    specialize (H0 univs [] retro cst (Ast.Env.ModuleDecl m0) cst).
+    unfold build_global_env_map in H0.
+    simpl in *.
+    rewrite H0.
+
+
 
 
 Lemma mkApps_morphism (f : term -> term) u v :
