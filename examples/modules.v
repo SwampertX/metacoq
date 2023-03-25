@@ -1,27 +1,36 @@
-From MetaCoq.Template Require Import All.
-Import MCMonadNotation.
+(* From MetaCoq.Template Require Import All. *)
+(* Import MCMonadNotation. *)
 
- Inductive roseTree :=
- | node (xs : list roseTree).
- (* | node_nil 
- | node_cons (r: roseTree) (xs: roseTree). *)
+Definition a := 0.
+Definition b := 1.
+Module M.
+    (* Print a.
+    Fail Print M.a. *)
+    Definition a := 1.
+    (* Print a.
+    Print M.a. *)
+    Module N.
+        (* Print a.
+        Print M.a.
+        Fail Module X := M. *)
+        Definition a := 2.
+        Print b.
+        Module O.
+            Definition a := 3.
+            Print b.
+            Definition c := a + a.
+            Compute c.
+        End O.
+    End N.
+    Module X := N.
+    Fail Definition a := 2.
+End M.
 
-Inductive All {A} (P : A -> Prop) : list A -> Prop :=
-  | All_nil : All P nil
-  | All_cons : forall (x : A) (l : list A),
-                  P x -> All P l -> All P (cons x l).
+Module M': .
+    Definition a := 1.
+End M'.
 
- (* Check roseTree_ind.
- Theorem roseTree_ind' : forall P : roseTree -> Prop,
-   (forall (xs : list roseTree) (allxs : All P xs), P (node xs)) -> forall r : roseTree, P r.
-   Proof.
-    intros P IH r. destruct r. induction xs; apply IH.
-    - apply All_nil.
-    - specialize (IH (cons r xs)).
-      
- *)
-
-Module M. 
+Module M.
     MetaCoq Quote Recursively Definition a := 0.
     Print a.
     Module N.
@@ -61,7 +70,7 @@ Module M1.
     MetaCoq Test Quote "N1"%bs.
     Module M := N1.
     MetaCoq Test Quote "M"%bs.
-    
+
 
     Definition div (n m: nat) := exists d: nat, d * n = m.
     Definition div_strict (a b: nat) := (div a b) /\ (a <> b). (* Strict partial order *)
@@ -78,13 +87,4 @@ Module M1.
         Print c.
     End N2.
 
-    Definition b3 := "b3".
 End M1.
-
-Definition a1 := "a1".
-
-Module M2.
-    Definition b4 := "b4".
-End M2.
-
-Definition a2 := "a2".
