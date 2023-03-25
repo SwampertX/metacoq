@@ -1227,25 +1227,72 @@ Module GlobalMaps (T: Term) (E: EnvironmentSig T) (TU : TermUtils T E) (ET: EnvT
       | None => on_type Σ [] d.(cst_type)
       end.
 
-    Definition ident_fresh (i: ident) (sb: structure_body) :=
+    Definition fresh_structure_body (i: ident) (sb: structure_body) :=
       All (fun '(i', _) => i <> i') sb.
 
+    (* Record on_structure_field_data (on_structure_field : global_env_ext -> structure_field -> Type)
+      univs sb retro path (udecl: universes_decl) i sf :=
+      {
+          ident_fresh :  fresh_structure_body i sb ;
+          udecl := universes_decl_of_decl sf ;
+          on_udecl_udecl : on_udecl univs udecl ;
+          on_global_decl_d : on_structure_field (mk_global_env univs sb retro path, udecl) sf
+      }. *)
+
+    Record on_structure_field_data Σ sb i sf :=
+      {
+          ident_fresh : fresh_structure_body i sb ;
+          udecl := universes_decl_of_decl sf ;
+          on_udecl_udecl : on_udecl univs udecl ;
+
+          on_structure_field_sb : on_structure_field  sf
+      }.
+
+    (* Inductive on_structure_body on_structure_field : structure_body -> Type :=
+      | on_sb_nil : on_structure_body on_structure_field nil
+      | on_sb_cons univs sb retro path udecl i sf :
+          on_structure_body on_structure_field sb ->
+          on_structure_field_data on_structure_field univs sb retro path udecl i sf ->
+          on_structure_body on_structure_field (sb ,, (i, sf)). *)
+
     Inductive on_structure_field Σ : structure_field -> Type :=
-      | on_ConstantDecl c : on_constant_body Σ c ->
-        on_structure_field Σ (ConstantDecl c)
-      | on_InductiveDecl kn inds : on_inductive Σ kn inds ->
-        on_structure_field Σ (InductiveDecl inds)
-      | on_ModuleDecl mi mt : on_module_impl Σ mi -> on_structure_body Σ mt ->
-        on_structure_field Σ (ModuleDecl mi mt)
-      | on_ModuleTypeDecl mtd : on_structure_body Σ mtd ->
+      | on_ConstantDecl c :
+          on_constant_body Σ c -> on_structure_field Σ (ConstantDecl c)
+      | on_InductiveDecl kn inds :
+          on_inductive Σ kn inds -> on_structure_field Σ (InductiveDecl inds)
+      | on_ModuleDecl mi mt :
+          on_module_impl Σ mi ->
+          on_structure_body on_structure_field mt -> (* module type must be correct wrt Σ. *)
+          on_structure_field Σ (ModuleDecl mi mt)
+      | on_ModuleTypeDecl mtd :
+        on_structure_body Σ mtd ->
         on_structure_field Σ (ModuleTypeDecl mtd)
-    with on_structure_body Σ : structure_body -> Type :=
+    with on_module_impl Σ : module_implementation -> Type :=
+      | on_mi_abstract : on_module_impl Σ mi_abstract
+      | on_mi_algebraic kn : (exists mi mt, lookup_env Σ kn = Some (ModuleDecl mi mt))
+                              -> on_module_impl Σ (mi_algebraic kn)
+      | on_mi_struct sb : on_structure_body Σ sb -> on_module_impl Σ (mi_struct sb)
+      | on_mi_fullstruct : on_module_impl Σ mi_fullstruct.
+
+    Inductive on_structure_field Σ : structure_field -> Type :=
+      | on_ConstantDecl c :
+          on_constant_body Σ c -> on_structure_field Σ (ConstantDecl c)
+      | on_InductiveDecl kn inds :
+          on_inductive Σ kn inds -> on_structure_field Σ (InductiveDecl inds)
+      | on_ModuleDecl mi mt :
+          on_module_impl Σ mi ->
+          on_structure_body on_structure_field mt -> (* module type must be correct wrt Σ. *)
+          on_structure_field Σ (ModuleDecl mi mt)
+      | on_ModuleTypeDecl mtd :
+        on_structure_body Σ mtd ->
+        on_structure_field Σ (ModuleTypeDecl mtd)
+    with on_structure_body (Σ: global_env_ext) : structure_body -> Type :=
       | on_sb_nil : on_structure_body Σ nil
-      | on_sb_cons i sf sb : on_structure_body Σ sb
-                              -> ident_fresh i sb
-                              -> on_udecl Σ.(universes) (universes_decl_of_decl sf)
-                              -> on_structure_field Σ sf
-                              -> on_structure_body Σ ((i,sf) :: sb)
+      | on_sb_cons Σ sb i sf :
+          on_structure_body Σ sb ->
+          on_structure_field_data on_structure_field univs sb retro path udecl i sf ->
+          on_structure_body on_structure_field (sb ,, (i, sf)).
+
     with on_module_impl Σ : module_implementation -> Type :=
       | on_mi_abstract : on_module_impl Σ mi_abstract
       | on_mi_algebraic kn : (exists mi mt, lookup_env Σ kn = Some (ModuleDecl mi mt))
@@ -1572,26 +1619,30 @@ Module DeclarationTyping (T : Term) (E : EnvironmentSig T) (TU : TermUtils T E)
     depelim wfΣ.
     intros X. destruct Σ as [univs sb retro path].
     cbn in *.
+  Admitted.
 
 
   (** Functoriality of global environment typing derivations + folding of the well-formed
     environment assumption. *)
-  Lemma on_wf_global_env_impl `{checker_flags} {Σ : global_env_ext} {wfΣ : on_global_env_ext cumul_gen (lift_typing typing) Σ} P Q sb:
+  Lemma on_wf_global_env_impl `{checker_flags} {Σ : global_env_ext} {wfΣ : on_global_env_ext cumul_gen (lift_typing typing) Σ} P Q:
     (forall Σ Γ t T, on_global_env_ext cumul_gen (lift_typing typing) Σ ->
         on_global_env_ext cumul_gen P Σ ->
         on_global_env_ext cumul_gen Q Σ ->
         P Σ Γ t T -> Q Σ Γ t T) ->
-    on_structure_body cumul_gen P Σ sb -> on_structure_body cumul_gen Q Σ sb.
+    on_structure_body cumul_gen P Σ Σ.(declarations) -> on_structure_body cumul_gen Q Σ Σ.(declarations).
   Proof.
-    intros X. induction sb.
-    constructor. intros onP.
-    destruct a as [i sf]. constructor.
-    - inversion onP; subst.
-    unfold on_global_env in *.
-    intros X [hu X0]. split; auto.
+    (* unfold on_global_env in *. *)
+    unfold on_global_env_ext in *.
+    (* intros X [hu X0]. split; auto. *)
+    intros X X0.
     simpl in *. destruct wfΣ as [cu wfΣ]. revert cu wfΣ.
-    revert X0. generalize (universes Σ) as univs, (retroknowledge Σ) as retro, (declarations Σ). clear hu Σ.
-    induction 1; constructor; try destruct o; try constructor; auto.
+    (* revert X0. generalize (universes Σ) as univs, (retroknowledge Σ) as retro, (declarations Σ). clear hu Σ. *)
+    revert X0. destruct Σ as [[univs decls retro path] udecls]; cbn in *.
+    simpl in *. revert o. revert univs retro decls.
+    induction 2; constructor.
+    shelve. auto. auto. destruct sf.
+
+    try destruct o; try constructor; auto.
     { depelim wfΣ. eauto. }
     depelim wfΣ. specialize (IHX0 cu wfΣ). destruct o.
     assert (X' := fun Γ t T => X ({| universes := univs; declarations := Σ |}, udecl0) Γ t T
