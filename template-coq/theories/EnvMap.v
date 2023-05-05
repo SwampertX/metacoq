@@ -197,12 +197,6 @@ Module EnvMap.
     intros wf eq k. red in eq.
     move: eq.
     induction g in e, k, wf |- *; auto.
-    - simpl. intros eq.
-      unfold lookup.
-      rewrite -KernameMapFact.F.not_find_in_iff.
-      intros hin.
-      red in eq. rewrite eq in hin.
-      now eapply KernameMapFact.F.empty_in_iff in hin.
     - cbn -[of_global_env eqb].
       destruct (eqb_spec k a.1).
       * subst.

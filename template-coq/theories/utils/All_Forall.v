@@ -1162,7 +1162,6 @@ Proof.
   - exists t. intuition auto.
   - destruct n; simpl; rewrite ?Nat.add_succ_r /=; auto.
     intros [= ->]. exists t; intuition auto.
-    apply IHX.
 Qed.
 
 Lemma OnOne2i_nth_error_r {A} i (l l' : list A) n t' P :
@@ -3454,7 +3453,7 @@ Lemma All2_map2_left {A B C D} {P : A -> A -> Type} Q (R : B -> D -> Type) {f : 
 Proof.
   intros hb ha hlen hPQ.
   induction ha in l, l''', hlen, hb |- *; simpl; try constructor; auto.
-  - destruct l => //. simpl. constructor.
+  - destruct l => //.
   - destruct l => //.
     noconf hlen. depelim hb.
     specialize (IHha _ _ hb H).
