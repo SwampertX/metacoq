@@ -1,0 +1,17 @@
+# TODO: adapt to your location
+-R ../common/theories MetaCoq.Common
+-R . MetaCoq.Guarded
+
+
+COQDOCFLAGS = "--charset utf-8 -s --index indexpage"
+
+MCRTree.v
+Except.v
+Trace.v
+printers.v
+util.v
+Inductives.v
+guardchecker.v
+positivitychecker.v
+plugin.v
+examples.v

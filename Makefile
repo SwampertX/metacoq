@@ -81,6 +81,7 @@ clean:
 	$(MAKE) -C examples clean
 	$(MAKE) -C test-suite clean
 	$(MAKE) -C translations clean
+	$(MAKE) -C guarded clean
 
 vos:
 	$(MAKE) -C utils
@@ -164,6 +165,9 @@ erasure: safechecker template-pcuic
 
 erasure-plugin: erasure template-pcuic
 	$(MAKE) -C erasure-plugin
+
+guarded : template-coq
+	$(MAKE) -C guarded
 
 install-plugins: erasure-plugin safechecker-plugin
 	$(MAKE) -C utils install
