@@ -1,5 +1,5 @@
 # TODO: adapt to your location
--R ../common/theories MetaCoq.Common
+# -R ../common/theories MetaCoq.Common
 -R . MetaCoq.Guarded
 
 
